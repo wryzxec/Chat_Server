@@ -1,33 +1,18 @@
-# Define variables for the compiler and flags
-CXX = g++
-CXXFLAGS = -Wall -Iinclude
-LDFLAGS = -lws2_32
+all: server.exe client.exe
 
-# Define the target executable
-TARGET = main.exe
+server.exe: src/server_main.cpp src/server.cpp include/server.h
+	g++ -Wall -Iinclude -o server.exe src/server_main.cpp src/server.cpp -lws2_32 -mconsole
 
-# Define source files and object files
-SRCS = src/main.cpp src/server.cpp src/client.cpp
-OBJS = $(SRCS:src/%.cpp=src/%.o)
+client.exe: src/client_main.cpp src/client.cpp include/client.h
+	g++ -Wall -Iinclude -o client.exe src/client_main.cpp src/client.cpp -lws2_32 -mconsole
 
-# Default target to build all
-all: $(TARGET)
+run-server: server.exe
+	./server.exe
 
-# Link the object files to create the executable
-$(TARGET): $(OBJS)
-	$(CXX) -o $@ $(OBJS) $(LDFLAGS)
+run-client: client.exe
+	./client.exe
 
-# Compile source files to object files
-src/%.o: src/%.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Rule to run the program
-run: $(TARGET)
-	$(TARGET)
-
-# Clean up build artifacts
 clean:
-	del $(OBJS) $(TARGET)
+	del server.exe client.exe
 
-# Phony targets
-.PHONY: all run clean
+.PHONY: all run-server run-client clean
