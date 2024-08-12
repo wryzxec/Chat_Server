@@ -11,15 +11,15 @@ public:
     ~Server();
 
     void start();
-    // void stop();
+    void stop();
 
 private:
     void create_socket();
     void bind_socket();
     void socket_listen();
-    void accept_client();
+    SOCKET accept_client();
+    void handle_client(SOCKET client_socket);
 
-    // void handle_client(SOCKET client_socket);
     // void broadcast_message(const std::string& message, SOCKET sender_socket);
 
     std::string server_address_;

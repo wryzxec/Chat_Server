@@ -4,6 +4,9 @@
 #include <string>
 #include <iostream>
 #include <winsock2.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 class Client {
 public:
@@ -12,7 +15,7 @@ public:
 
     void connect_to_server();
     // void disconnect_from_server();
-    // void send_message();
+    void send_message(json& message);
     // void receive_message();
     
 private:

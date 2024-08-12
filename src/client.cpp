@@ -1,6 +1,10 @@
 #include "client.h"
+#include "message.h"
 #include <iostream>
-#include <winsock.h>
+#include <winsock2.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 Client::Client(const std::string& server_address, unsigned short server_port)
     : server_address_(server_address), server_port_(server_port), client_socket_(INVALID_SOCKET), is_connected_(false) {
@@ -41,4 +45,9 @@ void Client::connect_to_server(){
         is_connected_ = true;
         std::cout << "Client successfully connected to server" << std::endl;
     }
+}
+
+void Client::send_message(json& message) {
+    Message message_handler(client_socket_);
+    message_handler.send_message(message);
 }

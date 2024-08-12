@@ -1,6 +1,10 @@
 #include "server.h"
+#include "message.h"
 #include <iostream>
-#include <winsock.h>
+#include <winsock2.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 Server::Server(const std::string& server_address, unsigned short server_port)
     : server_address_(server_address), server_port_(server_port), server_socket_(INVALID_SOCKET), is_connected_(false) {
@@ -13,7 +17,7 @@ Server::Server(const std::string& server_address, unsigned short server_port)
 }
 
 Server::~Server() {
-    // stop();
+    stop();
     WSACleanup();
 }
 
@@ -50,7 +54,7 @@ void Server::socket_listen(){
     }
 }
 
-void Server::accept_client(){
+SOCKET Server::accept_client(){
     SOCKET accept_socket = INVALID_SOCKET;
     accept_socket = accept(server_socket_, nullptr, nullptr);
 
@@ -60,11 +64,29 @@ void Server::accept_client(){
         WSACleanup();
         exit(1);
     }
+    return accept_socket;
+}
+
+void Server::handle_client(SOCKET client_socket){
+    Message message_handler(client_socket);
+    json received_message = message_handler.receive_message();
+    std::cout << "Received message: " << received_message.dump() << std::endl;
+    closesocket(client_socket);
 }
 
 void Server::start(){
+    std::cout << "Server starting..." << std::endl;
     create_socket();
     bind_socket();
     socket_listen();
-    accept_client();
+    std::cout << "Server started, listening for connections" << std::endl;
+    SOCKET client_socket = accept_client();
+    handle_client(client_socket);
+}
+
+void Server::stop(){
+    std::cout << "Server stopping..." << std::endl;
+    closesocket(server_socket_);
+    std::cout << "Server stopped" << std::endl;
+    WSACleanup();
 }
