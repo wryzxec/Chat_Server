@@ -3,11 +3,13 @@
 #include <iostream>
 #include <winsock2.h>
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <string>
 
 using json = nlohmann::json;
 
 Server::Server(const std::string& server_address, unsigned short server_port)
-    : server_address_(server_address), server_port_(server_port), server_socket_(INVALID_SOCKET), is_connected_(false) {
+    : server_address_(server_address), server_port_(server_port), server_socket_(INVALID_SOCKET), id_counter_(1){
     WSADATA wsa_data;
     int wserr = WSAStartup(MAKEWORD(2, 2), &wsa_data);
     if (wserr != 0) {
@@ -17,7 +19,6 @@ Server::Server(const std::string& server_address, unsigned short server_port)
 }
 
 Server::~Server() {
-    stop();
     WSACleanup();
 }
 
@@ -67,10 +68,24 @@ SOCKET Server::accept_client(){
     return accept_socket;
 }
 
+void Server::assign_client_id(SOCKET client_socket){
+    std::string client_id = std::to_string(id_counter_);
+    client_ids_[client_socket] = client_id;
+    id_counter_++;
+    std::cout << "Assigned client ID: " << client_id << std::endl;
+}
+
 void Server::handle_client(SOCKET client_socket){
+    assign_client_id(client_socket);
     Message message_handler(client_socket);
-    json received_message = message_handler.receive_message();
-    std::cout << "Received message: " << received_message.dump() << std::endl;
+    while(true){
+        json received_message = message_handler.receive_message();
+        if(received_message == nullptr){
+            std::cerr << "Failed to receive message" << std::endl;
+            break;
+        }
+        std::cout << "Received message: " << received_message.dump() << std::endl;
+    }
     closesocket(client_socket);
 }
 
@@ -80,9 +95,13 @@ void Server::start(){
     bind_socket();
     socket_listen();
     std::cout << "Server started, listening for connections" << std::endl;
-    SOCKET client_socket = accept_client();
-    handle_client(client_socket);
-}
+
+    while (true) {
+        SOCKET client_socket = accept_client();
+        std::thread client_thread(&Server::handle_client, this, client_socket);
+        client_thread.detach();
+    }
+}    
 
 void Server::stop(){
     std::cout << "Server stopping..." << std::endl;

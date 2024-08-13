@@ -30,12 +30,12 @@ void Client::connect_to_server(){
         exit(1);
     }
 
-    sockaddr_in client_service; 
-    client_service.sin_family = AF_INET;
-    client_service.sin_addr.s_addr = inet_addr(server_address_.c_str());
-    client_service.sin_port = htons(server_port_);
+    sockaddr_in server_address; 
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = inet_addr(server_address_.c_str());
+    server_address.sin_port = htons(server_port_);
 
-    if(connect(client_socket, reinterpret_cast<sockaddr*>(&client_service), sizeof(client_service)) == SOCKET_ERROR){
+    if(connect(client_socket, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address)) == SOCKET_ERROR){
         std::cerr << "Client connection failed with error: " << WSAGetLastError() << std::endl;
         closesocket(client_socket);
         WSACleanup();
@@ -44,6 +44,14 @@ void Client::connect_to_server(){
         client_socket_ = client_socket;
         is_connected_ = true;
         std::cout << "Client successfully connected to server" << std::endl;
+    }
+}
+
+void Client::disconnect_from_server(){
+    if(is_connected_){
+        closesocket(client_socket_);
+        is_connected_ = false;
+        std::cout << "Client disconnected from server" << std::endl;
     }
 }
 
