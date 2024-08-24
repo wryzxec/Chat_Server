@@ -5,6 +5,11 @@
 #include <iostream>
 #include <winsock2.h>
 #include <unordered_map>
+#include "client_manager.h"
+#include <atomic>
+#include <thread>
+#include <vector>
+#include <mutex>
 
 class Server {
 public:
@@ -18,16 +23,21 @@ private:
     void create_socket();
     void bind_socket();
     void socket_listen();
+    
     SOCKET accept_client();
-    void assign_client_id(SOCKET client_socket);
     void handle_client(SOCKET client_socket);
+    void cleanup_client_resources(SOCKET client_socket);
 
-    // void broadcast_message(const std::string& message, SOCKET sender_socket);
+    void control_loop();
+    
+    void broadcast_message(const std::string& message, SOCKET sender_socket);
+    void broadcast_shutdown_message(SOCKET sender_socket);
 
     std::string server_address_;
     unsigned short server_port_;
     SOCKET server_socket_;
-    unsigned short id_counter_;
-    std::unordered_map<SOCKET, std::string> client_ids_;
+    ClientManager client_manager_;
+    std::atomic<bool> is_running_;
+    std::mutex mutex_;
 };
 #endif

@@ -3,6 +3,8 @@
 #include <iostream>
 #include <winsock2.h>
 #include <nlohmann/json.hpp>
+#include <chrono>
+#include <thread>
 
 using json = nlohmann::json;
 
@@ -52,6 +54,37 @@ void Client::disconnect_from_server(){
         closesocket(client_socket_);
         is_connected_ = false;
         std::cout << "Client disconnected from server" << std::endl;
+    }
+}
+
+void Client::handle_server() {
+    while (is_connected_) {
+        ping_server();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+void Client::ping_server() {
+    json ping_message;
+    ping_message["type"] = "Ping";
+    try{
+        send_message(ping_message);
+        
+        Message message_handler(client_socket_);
+        json received_message = message_handler.receive_message();
+
+        std::string message_type = received_message["type"];
+
+        if (message_type == "Pong") {
+            std::cout << "Received pong message" << std::endl;
+        } else if (message_type == "Shutdown") {
+            std::cout << "Received shutdown message" << std::endl;
+            disconnect_from_server();
+        } else {
+            std::cerr << "Received unexpected message: " << received_message.dump() << std::endl;
+        }
+    } catch(const std::exception& e){
+        std::cerr << "Failed to send ping message: " << e.what() << std::endl;
     }
 }
 

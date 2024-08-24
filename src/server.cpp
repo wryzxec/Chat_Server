@@ -9,7 +9,7 @@
 using json = nlohmann::json;
 
 Server::Server(const std::string& server_address, unsigned short server_port)
-    : server_address_(server_address), server_port_(server_port), server_socket_(INVALID_SOCKET), id_counter_(1){
+    : server_address_(server_address), server_port_(server_port), server_socket_(INVALID_SOCKET), client_manager_(), is_running_(true) {
     WSADATA wsa_data;
     int wserr = WSAStartup(MAKEWORD(2, 2), &wsa_data);
     if (wserr != 0) {
@@ -56,40 +56,87 @@ void Server::socket_listen(){
 }
 
 SOCKET Server::accept_client(){
-    SOCKET accept_socket = INVALID_SOCKET;
-    accept_socket = accept(server_socket_, nullptr, nullptr);
+    {
+        SOCKET accept_socket = INVALID_SOCKET;
+        accept_socket = accept(server_socket_, nullptr, nullptr);
 
-    if(accept_socket == INVALID_SOCKET){
-        std::cerr << "Accept failed with error: " << WSAGetLastError() << std::endl;
-        closesocket(server_socket_);
-        WSACleanup();
-        exit(1);
+        if(accept_socket == INVALID_SOCKET){
+            std::lock_guard<std::mutex> lock(mutex_);
+            if(is_running_){
+                std::cerr << "Accept failed with error: " << WSAGetLastError() << std::endl;
+            }
+            return INVALID_SOCKET;
+        }
+        return accept_socket;
     }
-    return accept_socket;
-}
-
-void Server::assign_client_id(SOCKET client_socket){
-    std::string client_id = std::to_string(id_counter_);
-    client_ids_[client_socket] = client_id;
-    id_counter_++;
-    std::cout << "Assigned client ID: " << client_id << std::endl;
 }
 
 void Server::handle_client(SOCKET client_socket){
-    assign_client_id(client_socket);
     Message message_handler(client_socket);
     while(true){
-        json received_message = message_handler.receive_message();
-        if(received_message == nullptr){
+        // mutex
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if(!is_running_){
+                break;
+            }
+        }
+        json received_message;
+        try {
+            received_message = message_handler.receive_message();
+        } catch (const std::exception& e) {
+            std::cerr << "Error receiving message: " << e.what() << std::endl;
+            break;
+        }
+
+        if (received_message.is_null()) {
             std::cerr << "Failed to receive message" << std::endl;
             break;
+        }
+        if(received_message["type"] == "Ping"){
+            message_handler.send_message({{"type", "Pong"}});
+            continue;
         }
         std::cout << "Received message: " << received_message.dump() << std::endl;
     }
     closesocket(client_socket);
 }
 
+void Server::broadcast_message(const std::string& message, SOCKET server_socket){
+    for(auto const& client : client_manager_.get_socket_id_map()){
+       if (client.first != server_socket) {
+            Message message_handler(client.first);
+            message_handler.send_message(json::parse(message));
+        }
+    }
+}
+
+void Server::broadcast_shutdown_message(SOCKET server_socket){
+    for(auto const& client : client_manager_.get_socket_id_map()){
+        if (client.first != server_socket) {
+            Message message_handler(client.first);
+            message_handler.send_message({{"type", "Shutdown"}});
+        }
+    }
+}
+
+void Server::control_loop() {
+    std::string command;
+    while (std::getline(std::cin, command)) {
+        std::cout << "Command received: " << command << std::endl;  // Log command input
+        if (command == "/stop") {
+            std::cout << "Stopping server..." << std::endl;  // Log stop command
+            stop();
+            break;
+        }
+    }
+}
+
 void Server::start(){
+
+    std::thread control_thread(&Server::control_loop, this);
+    control_thread.detach();
+
     std::cout << "Server starting..." << std::endl;
     create_socket();
     bind_socket();
@@ -97,15 +144,38 @@ void Server::start(){
     std::cout << "Server started, listening for connections" << std::endl;
 
     while (true) {
+        // mutex
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if(!is_running_){
+                break;
+            }
+        }
         SOCKET client_socket = accept_client();
-        std::thread client_thread(&Server::handle_client, this, client_socket);
-        client_thread.detach();
+        if(client_socket != INVALID_SOCKET){
+            client_manager_.add_client_id(client_socket);
+            client_manager_.add_client_thread(client_manager_.get_client_id(client_socket), std::thread(&Server::handle_client, this, client_socket));
+        }
     }
 }    
 
-void Server::stop(){
-    std::cout << "Server stopping..." << std::endl;
+void Server::stop() {
+
+    // mutex
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(!is_running_) {
+            return;
+        }
+        is_running_ = false;
+    }
+
+    std::cout << "Broadcasting shutdown message..." << std::endl;
+    broadcast_shutdown_message(server_socket_);
+    
+    std::cout << "Cleaning up client resources..." << std::endl;
+    client_manager_.cleanup();
+    
+    std::cout << "Server has stopped." << std::endl;
     closesocket(server_socket_);
-    std::cout << "Server stopped" << std::endl;
-    WSACleanup();
 }

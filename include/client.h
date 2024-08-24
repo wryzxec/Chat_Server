@@ -15,8 +15,10 @@ public:
 
     void connect_to_server();
     void disconnect_from_server();
+    void handle_server();
     void send_message(json& message);
-    // void receive_message();
+
+    void ping_server();
     
 private:
     std::string server_address_;

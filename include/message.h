@@ -5,12 +5,12 @@ using json = nlohmann::json;
  
 class Message {
 public:
-    Message(int socket_fd);
+    Message(SOCKET socket_fd);
     ~Message();
 
     void send_message(const json& message);
     json receive_message();
 
 private:
-    int socket_fd_;
+    SOCKET socket_fd_;
 };

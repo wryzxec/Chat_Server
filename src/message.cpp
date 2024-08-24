@@ -2,10 +2,11 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <iostream>
+#include <winsock2.h>
 
 using json = nlohmann::json;
 
-Message::Message(int socket_fd) : socket_fd_(socket_fd) {}
+Message::Message(SOCKET socket_fd) : socket_fd_(socket_fd) {}
 Message::~Message() {}
 
 void Message::send_message(const json& message) {
